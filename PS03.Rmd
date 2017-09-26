@@ -1,6 +1,6 @@
 ---
 title: "STAT/MATH 495: Problem Set 03"
-author: "WRITE YOUR NAME HERE"
+author: "Kiryu Kawahata"
 date: "2017-09-26"
 output:
   html_document:
@@ -16,6 +16,10 @@ knitr::opts_chunk$set(echo = TRUE, fig.width=8, fig.height=4.5)
 
 # Load packages
 library(tidyverse)
+library(broom)
+library(mosaic)
+library(splines)
+library(gridExtra)
 data1 <- read_csv("data/data1.csv")
 data2 <- read_csv("data/data2.csv")
 ```
@@ -31,14 +35,135 @@ For both `data1` and `data2` tibbles (a tibble is a data frame with some
 * Create a visualizaztion of this model plotted over the given $(x_i, y_i)$ points for $i=1,\ldots,n=3000$.
 * Give your estimate $\widehat{\sigma}$ of $\sigma$ where the noise component $\epsilon_i$ is distributed with mean 0 and standard deviation $\sigma$.
 
+#Preview
+A quick preview of what is in each data set:
+```{r, echo=TRUE, warning=FALSE, message=FALSE}
+favstats(data1$y)
+favstats(data2$y)
+
+
+ggplot(data = data1, aes(x = y)) + geom_density(adjust=0.4) + labs(title="data1 Exploration", x="y of the data") + theme(legend.position="none")
+
+ggplot(data = data2, aes(x = y)) + geom_density(adjust=0.4) + labs(title="data2 Exploration", x="y of the data") + theme(legend.position="none")
+```
 
 # Data 1
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
+Shuff_1 <- sample(seq_len(nrow(data1)), size = 1500)
+
+Train <- data1[Shuff_1,]
+Valid <- data1[-Shuff_1,]
+
+#Below is a fuction that can easily produce spline models using different degrees of freedom. 
+
+Model_by_df <- function(df) {
+  Spline_Model_data1 <- smooth.spline(x = Train$x, y = Train$y, df=df)
+  return(Spline_Model_data1)
+}
+
+Model_by_df_tidy <- function(df) {
+
+Spline_Model_data1 <- smooth.spline(x = Train$x, y = Train$y, df=df)
+Spline_data1_tidy <- Spline_Model_data1 %>% 
+  broom::augment()
+return(Spline_data1_tidy)
+}
+
+
+#For data1 I have chosen a model with 15 knots based on the plot as there is little under or overfitting with this model. 
+
+
+data1_plot <- ggplot(Model_by_df_tidy(50), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y=.fitted), col= "Red") + labs(title = "50 D of F data1 Spline Model Plot")
+data1_plot_2 <- ggplot(Model_by_df_tidy(30), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y= .fitted), col= "Blue") + labs(title = "30 D of F data1 Spline Model Plot") 
+data1_plot_3 <- ggplot(Model_by_df_tidy(15), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y= .fitted), col= "Purple") + labs(title = "15 D of F data1 Spline Model Plot")
+data1_plot_4 <- ggplot(Model_by_df_tidy(10), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y= .fitted), col= "Green") + labs(title = "10 D of F data1 Spline Model Plot")
+
+grid.arrange(data1_plot, data1_plot_2, data1_plot_3, data1_plot_4, nrow = 2, ncol=2)
+
+
+#Calculation of the the Root Mean Square Error(RMSE):
+
+Trainset_test_data1 <- predict(Model_by_df(15), Train$x)
+
+data1_t_RMSE <- sqrt(sum(Trainset_test_data1$y^2))/3000
+
+validation_test_data1 <- predict(Model_by_df(15), Valid$x)
+
+
+data1_V_RMSE <- sqrt(sum(validation_test_data1$y^2))/3000
+
+data1_score_hat <- (data1_t_RMSE + data1_V_RMSE)/2
+
+data1_score_hat 
+
+
 ```
+
+Score-hat from the average RMSE for data1 is 0.0631 using k = 2 fold crossvalidation.
+
 
 # Data 2
 
 ```{r, echo=TRUE, warning=FALSE, message=FALSE}
+
+#Sampling/splitting of data 2 into train and validation sets. 
+
+Shuff_2 <- sample(seq_len(nrow(data2)), size = 1500)
+
+Train_2 <- data2[Shuff_2,]
+Valid_2 <- data2[-Shuff_2,]
+
+#Again easy functions to call models based on df/knots. Modified for new train sets to avoid reissue of unrelated data1 numbers. 
+
+Model_by_df_2 <- function(df) {
+  Spline_Model_data2 <- smooth.spline(x = Train_2$x, y = Train_2$y, df=df)
+  return(Spline_Model_data2)
+}
+
+Model_by_df_tidy_2 <- function(df) {
+
+Spline_Model_data2 <- smooth.spline(x = Train_2$x, y = Train_2$y, df=df)
+Spline_data2_tidy <- Spline_Model_data2 %>% 
+  broom::augment()
+return(Spline_data2_tidy)
+}
+
+
+#This time for data2 I have decided to test a model with 17 knots in the spline model based on plot observations. 
+
+data2_plot <- ggplot(Model_by_df_tidy_2(50), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y= .fitted), col= "blue") + labs(title = "50 D of F data2 Spline Model Plot")
+data2_plot_2 <- ggplot(Model_by_df_tidy_2(30), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y= .fitted), col= "red") + labs(title = "30 D of F data2 Spline Model Plot")
+data2_plot_3 <- ggplot(Model_by_df_tidy_2(15), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y= .fitted), col= "green") + labs(title = "15 D of F data2 Spline Model Plot")
+data2_plot_4 <- ggplot(Model_by_df_tidy_2(17), aes(x=x)) + 
+  geom_point(aes(y=y)) + geom_line(aes(y= .fitted), col= "purple") + labs(title = "17 D of F data2 Spline Model Plot")
+
+grid.arrange(data2_plot, data2_plot_2, data2_plot_3, data2_plot_4, nrow = 2, ncol=2)
+
+#Calculation of the the Root Mean Square Error(RMSE):
+
+Trainset_test_data2 <- predict(Model_by_df_2(15), Train_2$x)
+
+data2_t_RMSE <- sqrt(sum(Trainset_test_data2$y^2))/3000
+
+validation_test_data2 <- predict(Model_by_df_2(15), Valid_2$x)
+
+
+data2_V_RMSE <- sqrt(sum(validation_test_data2$y^2))/3000
+
+data2_score_hat <- (data2_t_RMSE + data2_V_RMSE)/2
+
+data2_score_hat 
+
+
+
 ```
 
+The RMSE score for data2 is 0.076 using k = 2 fold crossvalidation. I do however want to create a crossvalidation with at least 5 folds. As of writing I am trying to figure this out, and will include this if I can complete before pull. 
